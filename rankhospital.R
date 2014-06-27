@@ -1,32 +1,42 @@
-rankhospital <- function( state, outcome, num = "best" ) {
-
-
-	## return hospital name in that state with the given rank
-	## 30-day death rate
+rankhospital<-function(state, outcome, num = "best") {
 
 	# read outcome data
-        data<-read.csv("outcome-of-care-measures.csv", colClasses="character")
-
-        # just grab the rows for the state we want, the hospital names, and 30 day death rate for the requested outcome
-        colint <- paste("^Hospital.30.Day.Death..Mortality..Rates.from", sub(" ", ".", paste(outcome, "$", sep="")), sep=".")
-        colnum <- grep(colint, names(data), ignore.case=TRUE)
-        ourstate <- subset(data, data$State == toupper(state))[, c(2,7, grep(colint, names(data), ignore.case=TRUE))]
-
-	# exclude hospitals without data - going to do this by getting rid of NAs
-        # any hospital with all NAs (or no data) will be eliminated
-        new.data<-na.omit(ourstate)
-
-	# assign rank
-	if ( class(num) == "best" ) { num = 1 }
-	if ( class(num) == "worst" ) { num = ncol(new.data) }
-
-        # validation check of input to function
-        if (nrow(ourstate) == 0) { stop("invalid state") } # there were no states matching 'state'
-        if (length(colnum) == 0) { stop("invalid outcome") } # there were no outcomes matching 'outcome'
+	data<-read.csv("outcome-of-care-measures.csv", colClasses="character")
 	
+	# setup an index to help find the right column
+	outcomes<-c("heart attack", "heart failure", "pneumonia")
+	colnums <- c(11, 17, 23)
 
-        # build list of lowest 30 day death rate
-        # return only the first hospital in the list when sorted alphabetically
-        return(new.data[order(x[,3],x[,1]),][num,1])
+	# determine the requested column
+	colnum <- colnums[grep(outcome, outcomes, ignore.case=TRUE)]
+
+	# extract just the data we want
+	ourstate <- subset(data, data$State == toupper(state))[, c( 2, colnum)]
+
+	# test the input
+	if (!toupper(state) %in% data$State) stop("invalid state")
+	if (!toupper(outcome) %in% toupper(outcomes)) stop("invalid outcome")
+
+	# coerce the data into a useful class
+	ourstate[,2] <- suppressWarnings(as.numeric(as.character(ourstate[,2])))
+	
+	# exclude hospitals without data - going to do this by getting rid of NAs 
+	# any hospital with all NAs (or no data) will be eliminated
+	ourstate<-na.omit(ourstate)
+
+	# order the list prior to ranking so that ties are broken alphabetically
+	ourstate<-ourstate[order(ourstate[,2],ourstate[,1]),]	
+
+	# rank the list and add it as a column
+	# use the first method since the previous step already broke ties
+	ourstate[,3] <- rank(ourstate[,2], ties.method="first")
+
+	# set the rank
+ 	if ( num == "best" ) { num = 1 }
+        if ( num == "worst" ) { num = nrow(ourstate) }
+	num = as.numeric(num)
+
+	#return the one we want
+	return(subset(ourstate, ourstate$V3 == num)[1,1])
 
 }
